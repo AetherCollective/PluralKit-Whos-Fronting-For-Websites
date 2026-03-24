@@ -1,0 +1,18 @@
+{
+  "name": "pk-relay",
+  "version": "1.0.0",
+  "description": "PluralKit Relay Server",
+  "main": "pk-relay.js",
+  "scripts": {
+    "start": "node pk-relay.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "phoenix": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "@upstash/redis": "^1.34.0"
+  },
+  "engines": {
+    "node": ">=18 <22"
+  }
+}
