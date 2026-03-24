@@ -12,7 +12,7 @@ Configure `nginx.conf` by updating `proxy_pass` to your Relay IP
 
 Now copy the `<script>` from `website.html` and put it someone on your website. At the top of `<script>`, set your Relay IP and specific an `elementID` to replace.
 
-Respects Security Levels, will only show public members.
+Respects visibility setting, will only show public members.
 
 Made by the Aether Collective 
 Discord: @aethercollective
