@@ -29,7 +29,6 @@
  * ─────────────────────────────────────
  *   PK_TOKEN        – your PluralKit system token  (pk;token in Discord)
  *   PK_SYSTEM_ID    – your system short ID or UUID (or leave as "@me")
- *   PK_SIGNING_TOKEN – the signing token PluralKit gave you for the webhook
  *   PORT            – HTTP/WS listen port (default 3000)
  */
 
@@ -44,7 +43,6 @@ const { WebSocketServer, WebSocket } = require('ws');
 const CONFIG = {
   pkToken:       process.env.PK_TOKEN         || 'YOUR_PK_TOKEN_HERE',
   systemId:      process.env.PK_SYSTEM_ID     || '@me',
-  signingToken:  process.env.PK_SIGNING_TOKEN || 'YOUR_SIGNING_TOKEN_HERE',
   port:          parseInt(process.env.PORT     || '3000', 10),
 
   // How many recent switches to pre-load for "last fronted" history (max 100)
