@@ -7,11 +7,12 @@
     "start": "node pk-relay.js"
   },
   "dependencies": {
-    "ws": "^8.16.0",
-    "express": "*",
-    "dotenv": "^16.4.0"
+    "ws": "^8.20.0",
+    "express": "^5.2.1",
+    "dotenv": "^17.3.1",
+    "@upstash/redis": "^1.37.0"
   },
   "engines": {
-    "node": ">=18 <22"
+    "node": ">=18 <25"
   }
 }
