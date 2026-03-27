@@ -19,8 +19,8 @@
 
   // ─── internal state ────────────────────────────────────────────────────────
 
-  let socket        = null;
-  let ready         = false;
+  let socket = null;
+  let ready = false;
   let currentFronts = [];         // wrapped front objects from relay
   let lastFrontedHistory = {};    // memberUuid → ISO timestamp string
   let historyLoaded = false;
@@ -38,13 +38,13 @@
 
     const seconds = Math.floor(diffMs / 1000);
     const minutes = Math.floor(seconds / 60);
-    const hours   = Math.floor(minutes / 60);
-    const days    = Math.floor(hours   / 24);
-    const months  = Math.floor(days    / 30.4375);
-    const years   = Math.floor(months  / 12);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    const months = Math.floor(days / 30.4375);
+    const years = Math.floor(months / 12);
 
     const plural = (v, w) => `${v} ${w}${v === 1 ? '' : 's'}`;
-    const parts  = [];
+    const parts = [];
 
     if (years > 0) {
       parts.push(plural(years, 'year'));
@@ -89,7 +89,7 @@
       ready = true;
       // pk-relay sends a snapshot automatically on connect, but request
       // explicitly in case of a race or reconnect after reload.
-      socket.send(JSON.stringify({ event: 'get_current_fronts'   }));
+      socket.send(JSON.stringify({ event: 'get_current_fronts' }));
       socket.send(JSON.stringify({ event: 'get_last_fronted_all' }));
     });
 
@@ -104,7 +104,7 @@
       setTimeout(connect, 3000);
     });
 
-    socket.addEventListener('error', () => {});
+    socket.addEventListener('error', () => { });
   }
 
   function handleMessage(msg) {
@@ -179,11 +179,14 @@
         const a = f.alter;
         if (!a) return null;
 
-        const safe  = (a.name || '').replace(/\s+/g, '-');
-        let   label = `<a href="#${safe}" style="color:${a.color};text-decoration:none;">${a.name}</a>`;
+        const safe = (a.name || '').replace(/\s+/g, '-');
+        let label = `<a href="#${safe}" style="color:${a.color};text-decoration:none;">${a.name}</a>`;
 
-        if (f.front?.comment?.trim()) {
-          label += ` <span style="color:${a.color};">(${f.front.comment})</span>`;
+        const comment = f.front?.comment;
+        const commentStr = (typeof comment === 'string') ? comment.trim() : '';
+
+        if (commentStr) {
+          label += ` <span style="color:${a.color};">(${commentStr})</span>`;
         }
 
         return label;
@@ -207,7 +210,7 @@
     const el = document.getElementById(elementId);
     if (!el) return;
 
-    const key       = String(memberId);
+    const key = String(memberId);
     const isFronting = currentFronts.some(f => f.alter?.id === key);
 
     if (isFronting) {

@@ -17,7 +17,7 @@
  *
  * Setup
  * ─────
- *  1. npm install ws express
+ *  1. npm install ws express @upstash/redis
  *  2. Fill in the CONFIG block below.
  *  3. Run:  node pk-relay.js
  *  4. In PluralKit, register your webhook:
@@ -30,6 +30,8 @@
  *   PK_TOKEN        – your PluralKit system token  (pk;token in Discord)
  *   PK_SYSTEM_ID    – your system short ID or UUID (or leave as "@me")
  *   PORT            – HTTP/WS listen port (default 3000)
+ *   UPSTASH_REDIS_REST_URL   – https://your-db.upstash.io
+ *   UPSTASH_REDIS_REST_TOKEN – your Upstash REST token
  */
 
 'use strict';
@@ -37,6 +39,16 @@
 const http       = require('http');
 const express    = require('express');
 const { WebSocketServer, WebSocket } = require('ws');
+const { Redis }  = require('@upstash/redis');
+
+// ─── Upstash Redis ────────────────────────────────────────────────────────────
+
+const redis = new Redis({
+  url:   process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
+
+const REDIS_KEY = 'pk:lastFronted';
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
@@ -93,32 +105,68 @@ async function loadCurrentFronters() {
 }
 
 async function loadSwitchHistory() {
+  // 1. Seed from Redis so infrequent fronters aren't lost
+  try {
+    const obj = await redis.hgetall(REDIS_KEY);
+    if (obj) {
+      for (const [id, ts] of Object.entries(obj)) {
+        if (ts != null) lastFrontedMap[String(id)] = String(ts);
+      }
+    }
+    console.log(`[init] loaded ${Object.keys(lastFrontedMap).length} entries from Redis`);
+  } catch (e) {
+    console.error('[init] Redis load failed:', e.message);
+  }
+
+  // 2. Fetch recent switches from PK and merge (overwrites stale Redis entries)
   try {
     const switches = await pkGet(
       `/systems/${CONFIG.systemId}/switches?limit=${CONFIG.historyLimit}`
     );
-    if (!Array.isArray(switches)) return;
-
-    // Each switch only contains member IDs here, not full objects.
-    // Walk chronologically (oldest first) so later entries overwrite correctly.
-    const ordered = [...switches].reverse();
-    for (const sw of ordered) {
-      const ts = sw.timestamp;
-      for (const memberId of sw.members) {
-        lastFrontedMap[memberId] = ts;
+    if (Array.isArray(switches)) {
+      const updates = {};
+      const ordered = [...switches].reverse(); // oldest first so newest wins
+      for (const sw of ordered) {
+        for (const memberId of sw.members) {
+          lastFrontedMap[memberId] = sw.timestamp;
+          updates[memberId] = sw.timestamp;
+        }
+      }
+      // Persist any new entries back to Redis
+      if (Object.keys(updates).length) {
+        await redis.hset(REDIS_KEY, updates).catch(e =>
+          console.error('[init] Redis write failed:', e.message)
+        );
       }
     }
-
-    // Also record the *current* fronters as "last fronted = now" so the display
-    // shows "Actively Fronting Now" rather than a stale timestamp.
-    const now = new Date().toISOString();
-    for (const m of currentFronters) {
-      if (m.uuid) lastFrontedMap[m.uuid] = now;
-    }
-
-    console.log(`[init] built last-fronted history for ${Object.keys(lastFrontedMap).length} member(s)`);
   } catch (e) {
-    console.error('[init] failed to load switch history:', e.message);
+    console.error('[init] failed to load switch history from PK:', e.message);
+  }
+
+  // 3. Stamp current fronters as "now"
+  const now = new Date().toISOString();
+  const stamp = {};
+  for (const m of currentFronters) {
+    if (m.uuid) {
+      lastFrontedMap[m.uuid] = now;
+      stamp[m.uuid] = now;
+    }
+  }
+  if (Object.keys(stamp).length) {
+    await redis.hset(REDIS_KEY, stamp).catch(() => {});
+  }
+
+  console.log(`[init] final last-fronted history: ${Object.keys(lastFrontedMap).length} member(s)`);
+}
+
+// ─── Redis persistence helper ─────────────────────────────────────────────────
+
+async function saveLastFronted(updates) {
+  if (!Object.keys(updates).length) return;
+  try {
+    await redis.hset(REDIS_KEY, updates);
+  } catch (e) {
+    console.error('[redis] failed to save last-fronted:', e.message);
   }
 }
 
@@ -186,9 +234,11 @@ async function handleDispatch(event) {
 
       // Update lastFrontedMap for each member in the new switch.
       const ts = data?.timestamp ?? new Date().toISOString();
+      const updates = {};
       if (Array.isArray(data?.members)) {
         for (const memberId of data.members) {
           lastFrontedMap[memberId] = ts;
+          updates[memberId] = ts;
         }
       }
 
@@ -196,8 +246,13 @@ async function handleDispatch(event) {
       // "Actively Fronting Now" rather than the switch start timestamp.
       const nowIso = new Date().toISOString();
       for (const m of currentFronters) {
-        if (m.uuid) lastFrontedMap[m.uuid] = nowIso;
+        if (m.uuid) {
+          lastFrontedMap[m.uuid] = nowIso;
+          updates[m.uuid] = nowIso;
+        }
       }
+
+      await saveLastFronted(updates);
 
       broadcast({
         event:   'fronts_snapshot',
@@ -247,6 +302,7 @@ async function handleDispatch(event) {
     case 'DELETE_MEMBER': {
       currentFronters = currentFronters.filter(m => m.uuid !== id && m.id !== id);
       delete lastFrontedMap[id];
+      redis.hdel(REDIS_KEY, id).catch(() => {});
       broadcast({
         event:   'fronts_snapshot',
         fronts:  currentFronters.map(wrapMember),
