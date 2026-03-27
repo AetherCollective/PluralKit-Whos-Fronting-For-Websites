@@ -147,9 +147,9 @@ async function loadSwitchHistory() {
   const now = new Date().toISOString();
   const stamp = {};
   for (const m of currentFronters) {
-    if (m.uuid) {
-      lastFrontedMap[m.uuid] = now;
-      stamp[m.uuid] = now;
+    if (m.id) {
+      lastFrontedMap[m.id] = now;
+      stamp[m.id] = now;
     }
   }
   if (Object.keys(stamp).length) {
@@ -200,16 +200,16 @@ function sendSnapshot(ws) {
 }
 
 /**
- * Wrap a PK member object into the shape octo-client.js expects:
+ * Wrap a PK member object into the shape pk-client.js expects:
  *   { alter: { id, name, color, security_level }, front: { comment } }
  *
- * PluralKit uses "uuid" as the stable identifier.
- * The "privacy.visibility" field maps to octo's "security_level".
+ * Uses the short ID (member.id) consistently throughout — matches what the
+ * switches endpoint and dispatch events return.
  */
 function wrapMember(member, comment = '') {
   return {
     alter: {
-      id:             member.uuid,
+      id:             member.id,
       name:           member.display_name || member.name,
       color:          member.color ? `#${member.color}` : '#ffffff',
       security_level: member.privacy?.visibility === 'private' ? 'private' : 'public',
@@ -246,9 +246,9 @@ async function handleDispatch(event) {
       // "Actively Fronting Now" rather than the switch start timestamp.
       const nowIso = new Date().toISOString();
       for (const m of currentFronters) {
-        if (m.uuid) {
-          lastFrontedMap[m.uuid] = nowIso;
-          updates[m.uuid] = nowIso;
+        if (m.id) {
+          lastFrontedMap[m.id] = nowIso;
+          updates[m.id] = nowIso;
         }
       }
 
